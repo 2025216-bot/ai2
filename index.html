@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스마트 농업도우미 - 개화 예측 및 냉해 예보</title>
+
+  <!-- PWA 메타데이터 연동 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2E7D32">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <style>
+    /* ==========================================
+       1. 고령자 맞춤형 고대비 CSS 테마 변수
+       ========================================== */
+    :root {
+      --bg-color: #f8faf8;
+      --card-bg: #ffffff;
+      --text-main: #111111;
+      --text-sub: #444444;
+      --border-color: #bbbbbb;
+      --primary-color: #2E7D32;  /* 가독성 높은 농업 초록색 */
+      --primary-hover: #1B5E20;
+      --accent-alert: #d32f2f;   /* 경고 (영하/냉해) */
+      --accent-warning: #f57c00; /* 주의 (저온) */
+      --accent-safe: #2e7d32;    /* 안전 (정상) */
+      --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 다크 모드 (고대비) */
+    [data-theme="dark"] {
+      --bg-color: #121612;
+      --card-bg: #1e241e;
+      --text-main: #ffffff;
+      --text-sub: #dddddd;
+      --border-color: #445544;
+      --primary-color: #4CAF50;
+      --primary-hover: #388E3C;
+      --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 16px;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+      transition: background-color 0.3s, color 0.3s;
+      line-height: 1.5;
+    }
+
+    /* 헤더 디자인 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 3px solid var(--primary-color);
+    }
+
+    .app-title {
+      font-size: 26px;
+      font-weight: 900;
+      margin: 0;
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .theme-toggle-btn {
+      background-color: var(--card-bg);
+      border: 2px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 30px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* 카드 컨테이너 */
+    .card {
+      background-color: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .form-label {
+      display: block;
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    /* 초대형 드롭다운 컨트롤 */
+    .large-select {
+      width: 100%;
+      height: 58px;
+      font-size: 20px;
+      font-weight: bold;
+      padding: 0 16px;
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      background-color: var(--card-bg);
+      color: var(--text-main);
+      margin-bottom: 18px;
+      outline: none;
+    }
+
+    .large-select:focus {
+      border-color: var(--primary-color);
+      border-width: 3px;
+    }
+
+    /* 초대형 터치 버튼 */
+    .large-btn {
+      width: 100%;
+      height: 64px;
+      font-size: 22px;
+      font-weight: 900;
+      color: #ffffff;
+      background-color: var(--primary-color);
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    .large-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* AI 분석 결과 카드 */
+    .result-card {
+      display: none;
+      border-left: 10px solid var(--primary-color);
+    }
+
+    .dday-badge {
+      display: inline-block;
+      font-size: 30px;
+      font-weight: 900;
+      padding: 8px 20px;
+      border-radius: 30px;
+      background-color: rgba(46, 125, 50, 0.15);
+      color: var(--primary-color);
+      margin-bottom: 14px;
+    }
+
+    .risk-card {
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 19px;
+      font-weight: bold;
+      margin: 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .risk-normal { background-color: rgba(46, 125, 50, 0.15); color: var(--accent-safe); }
+    .risk-warning { background-color: rgba(245, 124, 0, 0.15); color: var(--accent-warning); }
+    .risk-danger { background-color: rgba(211, 47, 47, 0.15); color: var(--accent-alert); }
+
+    .guide-box {
+      background-color: rgba(0, 0, 0, 0.03);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 19px;
+      line-height: 1.6;
+      margin-top: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    .large-input {
+      width: 100%;
+      height: 54px;
+      font-size: 18px;
+      padding: 12px;
+      border: 2px solid var(--border-color);
+      border-radius: 10px;
+      background-color: var(--card-bg);
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+
+    #status {
+      font-size: 17px;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 10px;
+      min-height: 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 상단 헤더 -->
+  <div class="header">
+    <h1 class="app-title">🌾 스마트 농업도우미</h1>
+    <button type="button" class="theme-toggle-btn" id="themeBtn" onclick="toggleTheme()">🌙 크게보기/어둡게</button>
+  </div>
+
+  <!-- 조건 선택 카드 -->
+  <div class="card">
+    <label class="form-label" for="regionSelect">📍 1. 농가 지역을 선택하세요</label>
+    <select id="regionSelect" class="large-select">
+      <option value="서울/경기">서울 / 경기도</option>
+      <option value="강원">강원도</option>
+      <option value="충청">충청도</option>
+      <option value="전라">전라도</option>
+      <option value="경상">경상도</option>
+      <option value="제주">제주도</option>
+    </select>
+
+    <label class="form-label" for="cropSelect">🍎 2. 재배 작물을 선택하세요</label>
+    <select id="cropSelect" class="large-select">
+      <option value="배">배나무 (기준온도 5.0℃)</option>
+      <option value="사과">사과나무 (기준온도 5.0℃)</option>
+      <option value="복숭아">복숭아나무 (기준온도 4.5℃)</option>
+      <option value="포도">포도나무 (기준온도 10.0℃)</option>
+    </select>
+
+    <button type="button" class="large-btn" onclick="predictBloom()">🌸 AI 개화 시기 및 냉해 예측</button>
+  </div>
+
+  <!-- AI 분석 결과 카드 -->
+  <div class="card result-card" id="resultCard">
+    <div id="ddayBadge" class="dday-badge">D-Day 계산 중</div>
+    
+    <div style="font-size: 22px; font-weight: bold; margin-bottom: 10px;">
+      예상 개화일: <span id="predictedDateText" style="color: var(--primary-color);">-월 -일</span>
+    </div>
+
+    <!-- 냉해 위험도 카테고리 -->
+    <div id="riskBox" class="risk-card risk-normal">
+      <span id="riskIcon">✅</span>
+      <span id="riskText">냉해 위험도 분석 중...</span>
+    </div>
+
+    <!-- 맞춤형 농작업 가이드 -->
+    <div class="form-label" style="margin-top: 18px;">💡 어르신 맞춤 농작업 가이드</div>
+    <div id="guideText" class="guide-box">
+      가이드를 불러오는 중입니다...
+    </div>
+  </div>
+
+  <!-- 구글 시트 현장 제보 카드 -->
+  <div class="card">
+    <div class="form-label">📢 현장 관찰 내용 구글 시트 제보</div>
+    <input type="text" id="memoInput" class="large-input" placeholder="예: 배나무 꽃봉오리가 예년보다 일찍 부풀어 오름">
+    <button type="button" class="large-btn" style="height: 54px; font-size: 20px; background-color: #388e3c;" onclick="sendReport()">시트에 제보 저장하기</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    // ----------------------------------------------------
+    // 1. PWA 서비스 워커 등록
+    // ----------------------------------------------------
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(() => console.log('AgriHelper PWA Service Worker Registered'))
+        .catch(err => console.log('SW Registration Failed:', err));
+    }
+
+    // ----------------------------------------------------
+    // 2. Google Apps Script 백엔드 URL 설정 (배포 URL 입력)
+    // ----------------------------------------------------
+    const GAS_URL = "여기에_1단계에서_복사한_URL을_붙여넣으세요";
+
+    // ----------------------------------------------------
+    // 3. 작물별 누적 생육온도(GDD) 빅데이터 세트
+    // ----------------------------------------------------
+    const CROP_GDD_DATABASE = {
+      "배": { baseTemp: 5.0, targetGDD: 250 },
+      "사과": { baseTemp: 5.0, targetGDD: 280 },
+      "복숭아": { baseTemp: 4.5, targetGDD: 220 },
+      "포도": { baseTemp: 10.0, targetGDD: 320 }
+    };
+
+    const REGION_WEATHER_DATA = {
+      "서울/경기": { avgTemp: 13.5, minTemp: 1.5 },
+      "강원": { avgTemp: 10.2, minTemp: -2.1 },
+      "충청": { avgTemp: 12.8, minTemp: 0.5 },
+      "전라": { avgTemp: 14.2, minTemp: 3.0 },
+      "경상": { avgTemp: 14.8, minTemp: 3.5 },
+      "제주": { avgTemp: 16.5, minTemp: 6.0 }
+    };
+
+    // ----------------------------------------------------
+    // 4. GDD 기반 AI 개화 시기 및 냉해 위험도 추론 엔진
+    // ----------------------------------------------------
+    function predictBloom() {
+      const region = document.getElementById('regionSelect').value;
+      const crop = document.getElementById('cropSelect').value;
+
+      const cropInfo = CROP_GDD_DATABASE[crop];
+      const weather = REGION_WEATHER_DATA[region];
+
+      // GDD 일일 누적온도 산출 공식: max(0, AvgTemp - BaseTemp)
+      const dailyGDD = Math.max(0, weather.avgTemp - cropInfo.baseTemp);
+      
+      // 남은 D-Day 계산
+      const currentAccumulatedGDD = dailyGDD * 10; // 모의 누적 온량
+      const remainingGDD = cropInfo.targetGDD - currentAccumulatedGDD;
+      let estimatedDays = Math.max(2, Math.round(remainingGDD / (dailyGDD + 0.1)));
+
+      // 예상 개화 날짜 산출
+      const today = new Date();
+      const bloomDate = new Date();
+      bloomDate.setDate(today.getDate() + estimatedDays);
+
+      const month = bloomDate.getMonth() + 1;
+      const date = bloomDate.getDate();
+
+      // UI 결과 반영
+      document.getElementById('resultCard').style.display = 'block';
+      document.getElementById('ddayBadge').innerText = `개화 D-${estimatedDays}일`;
+      document.getElementById('predictedDateText').innerText = `${month}월 ${date}일 경`;
+
+      // 냉해 위험도 및 단계별 맞춤 가이드 생성
+      const riskBox = document.getElementById('riskBox');
+      const riskIcon = document.getElementById('riskIcon');
+      const riskText = document.getElementById('riskText');
+      const guideText = document.getElementById('guideText');
+
+      if (weather.minTemp <= 0) {
+        // [경고] 영하권 기온으로 냉해 발생 위험 극심
+        riskBox.className = "risk-card risk-danger";
+        riskIcon.innerText = "🚨";
+        riskText.innerText = "냉해 위험 [경고] - 심야 영하 기온 예보";
+        guideText.innerHTML = `
+          • <b>방상팬 및 미세살수 장치</b>를 오늘 밤 즉시 가동 준비하세요.<br>
+          • 인공 수분용 <b>꽃가루 발아율</b>을 사전에 점검해 두세요.<br>
+          • 과수원 주변 <b>왕겨 태우기 / 열풍기</b>로 온도를 유지하세요.
+        `;
+      } else if (weather.minTemp <= 3) {
+        // [주의] 야간 저온 현상
+        riskBox.className = "risk-card risk-warning";
+        riskIcon.innerText = "⚠️";
+        riskText.innerText = "냉해 위험 [주의] - 야간 저온 주의보";
+        guideText.innerHTML = `
+          • 병해충 약제(농약) 살포 시기를 <b>2~3일 연기</b>하세요.<br>
+          • 과수원 과습을 방지하기 위해 <b>배수로를 정비</b>하세요.<br>
+          • 인공 수분 인력을 사전에 확보해 두세요.
+        `;
+      } else {
+        // [정상]
+        riskBox.className = "risk-card risk-normal";
+        riskIcon.innerText = "✅";
+        riskText.innerText = "생육 상태 [정상] - 적정 기온 유지 중";
+        guideText.innerHTML = `
+          • 개화 적기에 맞춰 <b>인공 수분 작업</b>을 차질 없이 진행하세요.<br>
+          • 토양 수분을 적정 수준(60%)으로 유지하세요.<br>
+          • 수정벌 방사를 위한 벌통을 미리 배치해 두세요.
+        `;
+      }
+
+      // 결과 카드로 화면 자동 스크롤
+      document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ----------------------------------------------------
+    // 5. 구글 시트로 현장 제보 데이터 전송 (GAS doPost)
+    // ----------------------------------------------------
+    async function sendReport() {
+      const region = document.getElementById('regionSelect').value;
+      const crop = document.getElementById('cropSelect').value;
+      const input = document.getElementById('memoInput');
+      const status = document.getElementById('status');
+      const text = input.value.trim();
+
+      if (!text) {
+        alert('관찰 내용을 입력해 주세요.');
+        input.focus();
+        return;
+      }
+
+      if (GAS_URL.includes("여기에_1단계")) {
+        alert('GAS_URL 변수에 1단계 웹 앱 URL을 붙여넣어 주세요!');
+        return;
+      }
+
+      const formattedReport = `[농업도우미 / ${region} / ${crop}] ${text}`;
+
+      status.style.color = 'var(--text-sub)';
+      status.innerText = '⏳ 구글 시트에 저장 중...';
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ memo: formattedReport })
+        });
+
+        const result = await res.json();
+        
+        if (result.result !== 'success') {
+          throw new Error(result.message || '저장 실패');
+        }
+
+        input.value = '';
+        status.style.color = 'var(--primary-color)';
+        status.innerText = '✅ 성공적으로 제보가 저장되었습니다!';
+        setTimeout(() => { status.innerText = ''; }, 3000);
+
+      } catch (err) {
+        status.style.color = 'var(--accent-alert)';
+        status.innerText = '❌ 저장 실패: ' + err.message;
+      }
+    }
+
+    // ----------------------------------------------------
+    // 6. 고대비 다크 / 라이트 테마 스위처
+    // ----------------------------------------------------
+    function initTheme() {
+      const savedTheme = localStorage.getItem('agri_helper_theme') || 'light';
+      if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('themeBtn').innerText = '☀️ 밝게 보기';
+      }
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const themeBtn = document.getElementById('themeBtn');
+
+      if (currentTheme === 'dark') {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('agri_helper_theme', 'light');
+        themeBtn.innerText = '🌙 크게보기/어둡게';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('agri_helper_theme', 'dark');
+        themeBtn.innerText = '☀️ 밝게 보기';
+      }
+    }
+
+    initTheme();
+  </script>
+</body>
+</html>
