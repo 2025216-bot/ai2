@@ -1,0 +1,23 @@
+{
+  "name": "스마트 농업도우미 - 개화 예측 및 냉해 예보",
+  "short_name": "농업도우미",
+  "description": "기후변화 대응 고령 농업인을 위한 GDD 기반 개화 D-Day 예측 및 냉해 경보 서비스",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8faf8",
+  "theme_color": "#2E7D32",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
